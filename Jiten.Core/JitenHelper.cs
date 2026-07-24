@@ -701,7 +701,10 @@ public static class JitenHelper
                                           .GroupBy(d => d.WordId)
                                           .Select(g => new
                                                        {
-                                                           WordId = g.Key, TotalOccurrences = g.Sum(dw => dw.Occurrences),
+                                                           WordId = g.Key, 
+                                                           TotalOccurrences = g.Sum(dw => dw.Occurrences),
+                                                           RelativeFrequencySum = g.Sum(dw => dw.Deck.WordCount > 0 
+                                                                ? (double)dw.Occurrences / dw.Deck.WordCount: 0),
                                                            DistinctDeckCount =
                                                                g.Select(dw => dw.DeckId).Distinct().Count()
                                                        })
@@ -713,6 +716,7 @@ public static class JitenHelper
             {
                 freq.FrequencyRank = agg.TotalOccurrences;
                 freq.UsedInMediaAmount = agg.DistinctDeckCount;
+                freq.RelativeFrequencySum = agg.RelativeFrequencySum;
             }
         }
 
@@ -721,8 +725,12 @@ public static class JitenHelper
                                              .GroupBy(d => new { d.WordId, d.ReadingIndex })
                                              .Select(g => new
                                                           {
-                                                              g.Key.WordId, g.Key.ReadingIndex,
-                                                              TotalOccurrences = g.Sum(dw => dw.Occurrences), EntryCount = g.Count()
+                                                              g.Key.WordId, 
+                                                              g.Key.ReadingIndex,
+                                                              TotalOccurrences = g.Sum(dw => dw.Occurrences), 
+                                                              EntryCount = g.Count(),
+                                                              RelativeFrequencySum = g.Sum(dw => dw.Deck.WordCount > 0 
+                                                                ? (double)dw.Occurrences / dw.Deck.WordCount : 0)
                                                           })
                                              .ToListAsync();
 
@@ -733,6 +741,7 @@ public static class JitenHelper
             {
                 formFreq.FrequencyRank = agg.TotalOccurrences;
                 formFreq.UsedInMediaAmount = agg.EntryCount;
+                formFreq.RelativeFrequencySum = agg.RelativeFrequencySum; 
             }
         }
 
@@ -740,7 +749,8 @@ public static class JitenHelper
         foreach (var word in wordFrequencies.Values)
         {
             word.ObservedFrequency = word.FrequencyRank;
-            double score = Math.Log(1 + word.FrequencyRank) * word.UsedInMediaAmount;
+            double density = word.RelativeFrequencySum * 10000;
+            double score = Math.Log(1 + density) * word.UsedInMediaAmount;
             word.FrequencyRank = (int)Math.Round(score * 100);
 
             if (formFreqsByWord.TryGetValue(word.WordId, out var wordFormFreqs))
@@ -748,7 +758,8 @@ public static class JitenHelper
                 foreach (var formFreq in wordFormFreqs)
                 {
                     formFreq.ObservedFrequency = formFreq.FrequencyRank;
-                    double readingScore = Math.Log(1 + formFreq.FrequencyRank) * formFreq.UsedInMediaAmount;
+                    double readingDensity = formFreq.RelativeFrequencySum * 10000;
+                    double readingScore = Math.Log(1 + readingDensity) * formFreq.UsedInMediaAmount;
                     formFreq.FrequencyRank = (int)Math.Round(readingScore * 100);
                 }
             }
